@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Document</title>
+    <style>
+        * {
+            margin: 0px;
+            padding: 0px;
+        }
+    </style>
+</head>
+<body>
+    <canvas id='canvas'></canvas>
+    <script>
+        canvas.width = document.documentElement.clientWidth - 5;
+        canvas.height = document.documentElement.clientHeight - 5
+
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#001e2b';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        function newPoint(opts) {
+            const {
+                x,
+                y,
+                radius,
+                velocity
+            } = opts;
+
+            return {
+                x,
+                y,
+                radius: 0 || radius,
+                velocity: velocity || {
+                    x: 0,
+                    y: 0
+                },
+                move: function() {
+                    this.x += this.velocity.x;
+                    this.x = this.x % canvas.width;
+                    if (this.x < 0) this.x = canvas.width;
+                    this.y += this.velocity.y;
+                    this.y = this.y % canvas.height;
+                    if (this.y < 0) this.y = canvas.height;
+                }
+            };
+        }
+
+        const drawer = {
+            draw: function draw(point) {
+                ctx.beginPath();
+                ctx.arc(point.x, point.y, point.radius, 0, 2 * Math.PI, false);
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+                ctx.fill();
+            },
+            clear: function clear() {
+                ctx.fillStyle = '#001e2b';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            },
+            drawGroups: function(groups) {
+                this.connectedPoints = [];
+
+                groups.forEach(group => {
+                    this.drawGroup(group);
+                });
+            },
+            drawGroup: function(group) {
+                const isPointsConnected = (pointA, pointB) => {
+                    return !!this.connectedPoints.find(points => {
+                        return points.includes(pointA) && points.includes(pointB);
+                    });
+                }
+
+                for (let i = 0; i < group.length; i++) {
+                    for (let j = 1; j < group.length; j++) {
+                        if (group[i] === group[j]) {
+                            continue;
+                        }
+
+                        if (isPointsConnected(group[i], group[j])) {
+                            continue;
+                        }
+
+                        if (web.mode === web.modes.ONLY_CURSOR) {
+                            if (!group[i].isCursor && !group[j].isCursor) {
+                                continue;
+                            }
+                        }
+
+                        this.drawLine(group[i], group[j]);
+
+                        this.connectedPoints.push([group[i], group[j]]);
+                    }
+                }
+            },
+            drawLine: function(pointA, pointB) {
+                ctx.beginPath();
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+                ctx.moveTo(pointA.x, pointA.y);
+                ctx.lineTo(pointB.x, pointB.y);
+                ctx.stroke();
+            }
+        }
+
+        const web = {
+            points: [],
+            modes: {
+                ONLY_CURSOR: 'ONLY_CURSOR',
+                DEFAULT: 'DEFAULT'
+            },
+            mode: 'DEFAULT',
+            start: function start(defaultInterval, particlesNum) {
+                for (let i = 0; i < particlesNum; i++) {
+                    web.points.push(newPoint({
+                        x: Math.random() * canvas.width,
+                        y: Math.random() * canvas.height,
+                        radius: 2 + Math.random() * 4,
+                        velocity: {
+                            x: Math.random() * 4 - 2,
+                            y: Math.random() * 4 - 2
+                        }
+                    }));
+                }
+
+                const cursorPoint = newPoint({
+                    x: 0,
+                    y: 0,
+                });
+
+                cursorPoint.isCursor = true;
+
+                web.points.push(cursorPoint);
+
+                canvas.onmousemove = event => {
+                    web.points[web.points.length -1].x = event.clientX;
+                    web.points[web.points.length -1].y = event.clientY;
+                };
+
+                const interval = defaultInterval || 1000 / 60;
+
+                this.timer = setInterval(() => {
+                    drawer.clear();
+                    this.points.forEach(point => {
+                        drawer.draw(point);
+                        point.move();
+                    });
+
+                    this.drawConnections();
+                }, interval);
+            },
+
+            restart(interval, particlesNum) {
+                clearInterval(this.timer);
+                this.points = [];
+                this.start(interval, particlesNum);
+            },
+
+            drawConnections: function() {
+                this.groups = [];
+
+                for (let i = 0; i < this.points.length; i++) {
+                    this.groups.push([this.points[i]]);
+
+                    for (let j = 1; j < this.points.length; j++) {
+                        if (this.points[i] === this.points[j]) {
+                            continue;
+                        }
+
+                        if (this.isPointsNear(this.points[i], this.points[j], 100)) {
+                            this.groups[i].push(this.points[j]);
+                        }
+                    }
+                }
+
+                drawer.drawGroups(this.groups);
+            },
+
+            isPointsNear: function(pointA, pointB, distance) {
+                return Math.sqrt(Math.pow(Math.abs(pointA.x - pointB.x), 2) + Math.pow(Math.abs(pointA.y - pointB.y), 2)) < distance;
+            },
+
+            switchMode: function() {
+                if (this.mode === this.modes.DEFAULT) {
+                    return this.changeMode(this.modes.ONLY_CURSOR);
+                }
+
+                this.changeMode(this.modes.DEFAULT);
+            },
+
+            changeMode: function(mode) {
+                if (mode === this.modes.DEFAULT) {
+                    this.restart(null, 200);
+                } else {
+                    this.restart(null, 200);
+                }
+
+                this.mode = mode;
+            }
+        }
+
+        web.start(null, 200);
+
+        canvas.onclick = () => {
+            web.switchMode();
+        }
+
+    </script>
+</body>
+</html>
